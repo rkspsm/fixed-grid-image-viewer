@@ -18,6 +18,9 @@ class Stuff :
   next_k = {Qt.Key_D}
   prev_k = {Qt.Key_A}
 
+  overlays = ['grid.png']
+  overlay_toggle = {Qt.Key_S}
+
   @staticmethod
   def dist (p1, p2) :
     dx = p1[0] - p2[0]
@@ -91,6 +94,10 @@ class App (QApplication) :
     self.files = [x for x in files if isImage (x)]
     self.files = list (sorted (self.files))
     self.index = 0
+
+    self.overlayItems = [self.scene.addPixmap (QPixmap (x)) for x in Stuff.overlays]
+    for i, item in enumerate (self.overlayItems) :
+      item.setZValue (1 + i)
 
     self.filesOrIndexUpdated (True)
 
@@ -174,6 +181,9 @@ class App (QApplication) :
     elif e.key () in Stuff.prev_k :
       self.index -= 1
       self.filesOrIndexUpdated ()
+    elif e.key () in Stuff.overlay_toggle :
+      for item in self.overlayItems :
+        item.setVisible (not item.isVisible ())
 
   def go (self) :
     if self.err != '' :
