@@ -17,9 +17,13 @@ class Stuff :
   scale_factor = 0.01
   next_k = {Qt.Key_D}
   prev_k = {Qt.Key_A}
+  refresh = {Qt.Key_Y}
 
   overlays = ['grid.png']
   overlay_toggle = {Qt.Key_S}
+
+  zoom_button = Qt.MiddleButton
+  pan_button = Qt.LeftButton
 
   @staticmethod
   def dist (p1, p2) :
@@ -81,7 +85,7 @@ class App (QApplication) :
       traceback.print_exc ()
       self.err = 'usage: <prog> <imgdir>'
 
-  def setup (self) :
+  def getFiles (self) :
     files = os.listdir (self.imgdir)
     files = [os.path.join (self.imgdir, x) for x in files]
     files = [x for x in files if os.path.isfile (x)]
@@ -91,8 +95,12 @@ class App (QApplication) :
       f.endswith ('.jpeg')
     )
 
-    self.files = [x for x in files if isImage (x)]
-    self.files = list (sorted (self.files))
+    files = [x for x in files if isImage (x)]
+    files = list (sorted (files))
+    return files
+
+  def setup (self) :
+    self.files = self.getFiles ()
     self.index = 0
 
     self.overlayItems = [self.scene.addPixmap (QPixmap (x)) for x in Stuff.overlays]
@@ -124,12 +132,12 @@ class App (QApplication) :
     pass
 
   def mp (self, e) :
-    if e.button () == Qt.LeftButton or e.button () == Qt.MiddleButton :
+    if e.button () == Stuff.zoom_button or e.button () == Stuff.pan_button :
       self.zoom_origin = (e.x (), e.y ())
 
       self.curt = QTransform (self.imgItem.transform ())
 
-      if e.button () == Qt.MiddleButton :
+      if e.button () == Stuff.pan_button :
         self.noscale = True
       else :
         self.noscale = False
@@ -184,6 +192,16 @@ class App (QApplication) :
     elif e.key () in Stuff.overlay_toggle :
       for item in self.overlayItems :
         item.setVisible (not item.isVisible ())
+    elif e.key () in Stuff.refresh :
+      newFiles = self.getFiles ()
+      curFile = self.files[self.index]
+      if curFile in newFiles :
+        newIndex = newFiles.index (curFile)
+      else :
+        newIndex = self.index
+
+      self.files = newFiles
+      self.index = newIndex
 
   def go (self) :
     if self.err != '' :
