@@ -172,7 +172,7 @@ class App (QApplication) :
 
       if e.button () == Stuff.pan_button :
         self.noscale = True
-        self.linePt = QPointF (e.x (), e.y ())
+        self.linePt = self.gv.mapToScene (QPoint (e.x (), e.y ()))
       else :
         self.noscale = False
 
@@ -199,7 +199,7 @@ class App (QApplication) :
     dy = pt[1] - self.zoom_origin[1]
     if self.noscale :
       if not self.pan_on :
-        newPt = QPointF (e.x (), e.y ())
+        newPt = self.gv.mapToScene (QPoint (e.x (), e.y ()))
         line = self.scene.addLine (QLineF (self.linePt, newPt), QPen (self.lineColor))
         line.setZValue (500)
         self.lines.append (line)
