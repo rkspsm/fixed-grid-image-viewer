@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from math import *
 
+from hashlib import sha256
 import sys, os
 import traceback
 
@@ -15,12 +16,13 @@ class Stuff :
   width = 800
   height = 600
   scale_factor = 0.01
-  next_k = {Qt.Key_D}
-  prev_k = {Qt.Key_A}
-  refresh = {Qt.Key_Y}
+  next_k = {Qt.Key_D, Qt.Key_6, Qt.Key_Y}
+  prev_k = {Qt.Key_A, Qt.Key_4, Qt.Key_E}
+  refresh = {Qt.Key_X}
+  pan_toggle = {Qt.Key_Z, Qt.Key_W}
 
   overlays = ['grid.png']
-  overlay_toggle = {Qt.Key_S}
+  overlay_toggle = {Qt.Key_S, Qt.Key_5}
 
   zoom_button = Qt.MiddleButton
   pan_button = Qt.LeftButton
@@ -84,6 +86,7 @@ class App (QApplication) :
     except :
       traceback.print_exc ()
       self.err = 'usage: <prog> <imgdir>'
+      self.exit (1)
 
   def getFiles (self) :
     files = os.listdir (self.imgdir)
@@ -96,12 +99,16 @@ class App (QApplication) :
     )
 
     files = [x for x in files if isImage (x)]
+    if len (files) == 0 :
+      raise Exception ('no images in the dir')
     files = list (sorted (files))
     return files
 
   def setup (self) :
+    self.pan_on = True
     self.files = self.getFiles ()
     self.index = 0
+    self.savedTransforms = dict ()
 
     self.overlayItems = [self.scene.addPixmap (QPixmap (x)) for x in Stuff.overlays]
     for i, item in enumerate (self.overlayItems) :
@@ -114,7 +121,13 @@ class App (QApplication) :
 
   def filesOrIndexUpdated (self, isFirst = False) :
     if not isFirst :
+      self.savedTransforms[self.lastDigest] = QTransform (self.imgItem.transform ())
       self.scene.removeItem (self.imgItem)
+    self.index = 0 if self.index >= len (self.files) else self.index
+    with open (self.files[self.index], 'rb') as handle :
+      s = sha256 ()
+      s.update (handle.read ())
+    d = s.digest ()
     img = QPixmap (self.files[self.index])
     self.imgItem = self.scene.addPixmap (img)
 
@@ -122,8 +135,12 @@ class App (QApplication) :
     hrat = img.height () / Stuff.height
     rat = wrat if wrat > hrat else hrat
 
-    self.curt = QTransform (self.imgItem.transform ()).scale (1 / rat, 1 / rat)
+    if d in self.savedTransforms :
+      self.curt = self.savedTransforms[d]
+    else :
+      self.curt = QTransform (self.imgItem.transform ()).scale (1 / rat, 1 / rat)
     self.imgItem.setTransform (self.curt)
+    self.lastDigest = d
 
   def m_init (self) :
     self.gv.setMHandlers (self.mp, self.mm, self.mr)
@@ -161,6 +178,8 @@ class App (QApplication) :
     dx = pt[0] - self.zoom_origin[0]
     dy = pt[1] - self.zoom_origin[1]
     if self.noscale :
+      if not self.pan_on :
+        return
       scale = self.curt.m11 ()
       self.tempt = QTransform (self.curt).translate (dx / scale, dy / scale)
       self.imgItem.setTransform (self.tempt)
@@ -202,6 +221,9 @@ class App (QApplication) :
 
       self.files = newFiles
       self.index = newIndex
+
+    elif e.key () in Stuff.pan_toggle :
+      self.pan_on = not self.pan_on
 
   def go (self) :
     if self.err != '' :
