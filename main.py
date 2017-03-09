@@ -20,12 +20,15 @@ class Stuff :
   prev_k = {Qt.Key_A, Qt.Key_4, Qt.Key_E}
   refresh = {Qt.Key_X}
   pan_toggle = {Qt.Key_Z, Qt.Key_W}
+  remove_lines_button = {Qt.Key_C, Qt.Key_Home}
+  pick_line_color = {Qt.Key_Q}
 
   overlays = ['grid.png']
-  overlay_toggle = {Qt.Key_S, Qt.Key_5}
+  overlay_toggle = {Qt.Key_S, Qt.Key_5, Qt.Key_9}
 
   zoom_button = Qt.MiddleButton
   pan_button = Qt.LeftButton
+  pick_color_button = Qt.RightButton
 
   @staticmethod
   def dist (p1, p2) :
@@ -36,6 +39,10 @@ class Stuff :
   @staticmethod
   def tscale (t) :
     return (t.m11 (), t.m22 ())
+
+  @staticmethod
+  def string_of_rect (r) :
+    return f'rect({r.x()}, {r.y()}, {r.width()}, {r.height()}'
 
 class GfxView (QGraphicsView) :
   def setMHandlers (self, mp, mm, mr) :
@@ -110,14 +117,22 @@ class App (QApplication) :
     self.index = 0
     self.savedTransforms = dict ()
 
+    self.lineColor = QColor (0, 0, 0)
+    self.lines = []
+
     self.overlayItems = [self.scene.addPixmap (QPixmap (x)) for x in Stuff.overlays]
     for i, item in enumerate (self.overlayItems) :
-      item.setZValue (1 + i)
+      item.setZValue (10 + i)
 
     self.filesOrIndexUpdated (True)
 
     self.m_init ()
     self.k_init ()
+
+  def removeLines (self) :
+    for line in self.lines :
+      self.scene.removeItem (line)
+    self.lines = []
 
   def filesOrIndexUpdated (self, isFirst = False) :
     if not isFirst :
@@ -141,6 +156,7 @@ class App (QApplication) :
       self.curt = QTransform (self.imgItem.transform ()).scale (1 / rat, 1 / rat)
     self.imgItem.setTransform (self.curt)
     self.lastDigest = d
+    self.removeLines ()
 
   def m_init (self) :
     self.gv.setMHandlers (self.mp, self.mm, self.mr)
@@ -156,11 +172,15 @@ class App (QApplication) :
 
       if e.button () == Stuff.pan_button :
         self.noscale = True
+        self.linePt = QPointF (e.x (), e.y ())
       else :
         self.noscale = False
 
   def mr (self, e) :
     self.zoom_origin = None
+
+    if e.button () == Stuff.pick_color_button :
+      self.lineColor = QColorDialog.getColor ()
 
   def zoi (self) :
     pt = QPoint (self.zoom_origin[0], self.zoom_origin[1])
@@ -179,6 +199,11 @@ class App (QApplication) :
     dy = pt[1] - self.zoom_origin[1]
     if self.noscale :
       if not self.pan_on :
+        newPt = QPointF (e.x (), e.y ())
+        line = self.scene.addLine (QLineF (self.linePt, newPt), QPen (self.lineColor))
+        line.setZValue (500)
+        self.lines.append (line)
+        self.linePt = newPt
         return
       scale = self.curt.m11 ()
       self.tempt = QTransform (self.curt).translate (dx / scale, dy / scale)
@@ -224,6 +249,12 @@ class App (QApplication) :
 
     elif e.key () in Stuff.pan_toggle :
       self.pan_on = not self.pan_on
+
+    elif e.key () in Stuff.remove_lines_button :
+      self.removeLines ()
+
+    elif e.key () in Stuff.pick_line_color :
+      self.lineColor = QColorDialog.getColor ()
 
   def go (self) :
     if self.err != '' :
