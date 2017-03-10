@@ -200,7 +200,7 @@ class App (QApplication) :
     if self.noscale :
       if not self.pan_on :
         newPt = self.gv.mapToScene (QPoint (e.x (), e.y ()))
-        line = self.scene.addLine (QLineF (self.linePt, newPt), QPen (self.lineColor))
+        line = self.scene.addLine (QLineF (self.linePt, newPt), QPen (self.lineColor, 2))
         line.setZValue (500)
         self.lines.append (line)
         self.linePt = newPt
