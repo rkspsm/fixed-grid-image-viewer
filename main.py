@@ -124,7 +124,12 @@ class App (QApplication) :
     for i, item in enumerate (self.overlayItems) :
       item.setZValue (10 + i)
 
-    self.filesOrIndexUpdated (True)
+    try :
+      skip = int (self.args[1])
+    except :
+      skip = 0
+
+    self.filesOrIndexUpdated (True, skip)
 
     self.m_init ()
     self.k_init ()
@@ -134,10 +139,12 @@ class App (QApplication) :
       self.scene.removeItem (line)
     self.lines = []
 
-  def filesOrIndexUpdated (self, isFirst = False) :
+  def filesOrIndexUpdated (self, isFirst = False, skip = 0) :
     if not isFirst :
+      skip = 0
       self.savedTransforms[self.lastDigest] = QTransform (self.imgItem.transform ())
       self.scene.removeItem (self.imgItem)
+    self.index += skip
     self.index = 0 if self.index >= len (self.files) else self.index
     with open (self.files[self.index], 'rb') as handle :
       s = sha256 ()
