@@ -29,7 +29,8 @@ class Stuff :
   res_play_rate = {Qt.Key_F}
   seek_f = {Qt.Key_Right}
   seek_b = {Qt.Key_Left}
-  seek_0 = {Qt.Key_Space}
+  seek_0 = {Qt.Key_R}
+  play_pause = {Qt.Key_Space}
 
   overlays = ['grid.png']
   overlay_toggle = {Qt.Key_S, Qt.Key_5}
@@ -124,6 +125,8 @@ class App (QApplication) :
     return files
 
   def setup (self) :
+    self.isMedia = False
+    self.playratepow = 0
     self.pan_on = True
     self.files = self.getFiles ()
     self.index = 0
@@ -137,6 +140,7 @@ class App (QApplication) :
     self.overlayItems = [self.scene.addPixmap (QPixmap (x)) for x in Stuff.overlays]
     for i, item in enumerate (self.overlayItems) :
       item.setZValue (10 + i)
+      item.setVisible (False)
 
     try :
       skip = int (self.args[1])
@@ -163,6 +167,7 @@ class App (QApplication) :
     return Stuff.seek_t * factor * 1000
 
   def filesOrIndexUpdated (self, isFirst = False, skip = 0) :
+    self.isMedia = False
     if not isFirst :
       self.player.stop ()
       skip = 0
@@ -196,6 +201,7 @@ class App (QApplication) :
       self.player.setVideoOutput (self.imgItem)
       self.scene.addItem (self.imgItem)
       self.player.play ()
+      self.isMedia = True
 
       wrat = 1
       hrat = 1
@@ -307,35 +313,45 @@ class App (QApplication) :
     elif e.key () in Stuff.pick_line_color :
       self.lineColor = QColorDialog.getColor ()
 
-    elif e.key () in Stuff.inc_play_rate :
+    elif self.isMedia and e.key () in Stuff.inc_play_rate :
       self.playratepow += 1
       self.playrateUpdated ()
 
-    elif e.key () in Stuff.dec_play_rate :
+    elif self.isMedia and e.key () in Stuff.dec_play_rate :
       self.playratepow -= 1
       self.playrateUpdated ()
 
-    elif e.key () in Stuff.res_play_rate :
+    elif self.isMedia and e.key () in Stuff.res_play_rate :
       self.playratepow = 0
       self.playrateUpdated ()
 
-    elif e.key () in Stuff.seek_f :
+    elif self.isMedia and e.key () in Stuff.seek_f :
       t = self.getseekt ()
       pos = self.player.position ()
       pos += t
       pos = 0 if pos < 0 else pos
       self.player.setPosition (pos)
 
-    elif e.key () in Stuff.seek_b :
+    elif self.isMedia and e.key () in Stuff.seek_b :
       t = self.getseekt ()
       pos = self.player.position ()
       pos -= t
       pos = 0 if pos < 0 else pos
       self.player.setPosition (pos)
 
-    elif e.key () in Stuff.seek_0 :
+    elif self.isMedia and e.key () in Stuff.seek_0 :
       self.player.setPosition (0)
       self.player.play ()
+
+    elif self.isMedia and e.key () in Stuff.play_pause :
+      state = self.player.state ()
+      if state == QMediaPlayer.StoppedState :
+        self.player.setPosition (0)
+        self.player.play ()
+      elif state == QMediaPlayer.PlayingState :
+        self.player.pause ()
+      elif state == QMediaPlayer.PausedState :
+        self.player.play ()
 
   def go (self) :
     if self.err != '' :
