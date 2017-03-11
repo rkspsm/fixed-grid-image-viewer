@@ -3,6 +3,8 @@
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
+from PyQt5.QtMultimedia import *
+from PyQt5.QtMultimediaWidgets import *
 from math import *
 
 from hashlib import sha256
@@ -19,16 +21,31 @@ class Stuff :
   next_k = {Qt.Key_D, Qt.Key_6, Qt.Key_Y}
   prev_k = {Qt.Key_A, Qt.Key_4, Qt.Key_E}
   refresh = {Qt.Key_X}
-  pan_toggle = {Qt.Key_Z, Qt.Key_W}
-  remove_lines_button = {Qt.Key_C, Qt.Key_Home}
+  pan_toggle = {Qt.Key_Z, Qt.Key_W, Qt.Key_2}
+  remove_lines_button = {Qt.Key_C, Qt.Key_Home, Qt.Key_9}
   pick_line_color = {Qt.Key_Q}
+  inc_play_rate = {Qt.Key_Up}
+  dec_play_rate = {Qt.Key_Down}
+  res_play_rate = {Qt.Key_F}
+  seek_f = {Qt.Key_Right}
+  seek_b = {Qt.Key_Left}
+  seek_0 = {Qt.Key_Space}
 
   overlays = ['grid.png']
-  overlay_toggle = {Qt.Key_S, Qt.Key_5, Qt.Key_9}
+  overlay_toggle = {Qt.Key_S, Qt.Key_5}
 
+  seek_t = 2 # seconds
   zoom_button = Qt.MiddleButton
   pan_button = Qt.LeftButton
   pick_color_button = Qt.RightButton
+
+  @staticmethod
+  def isImage (f) :
+    return f.endswith ('.jpg') or f.endswith ('.png') or f.endswith ('.jpeg')
+
+  @staticmethod
+  def isMovie (f) :
+    return f.endswith ('.mkv') or f.endswith ('.avi') or f.endswith ('.mp4')
 
   @staticmethod
   def dist (p1, p2) :
@@ -99,13 +116,8 @@ class App (QApplication) :
     files = os.listdir (self.imgdir)
     files = [os.path.join (self.imgdir, x) for x in files]
     files = [x for x in files if os.path.isfile (x)]
-    isImage = lambda f : (
-      f.endswith ('.jpg') or
-      f.endswith ('.png') or
-      f.endswith ('.jpeg')
-    )
 
-    files = [x for x in files if isImage (x)]
+    files = [x for x in files if Stuff.isImage (x) or Stuff.isMovie (x)]
     if len (files) == 0 :
       raise Exception ('no images in the dir')
     files = list (sorted (files))
@@ -119,6 +131,8 @@ class App (QApplication) :
 
     self.lineColor = QColor (0, 0, 0)
     self.lines = []
+
+    self.player = QMediaPlayer ()
 
     self.overlayItems = [self.scene.addPixmap (QPixmap (x)) for x in Stuff.overlays]
     for i, item in enumerate (self.overlayItems) :
@@ -139,22 +153,52 @@ class App (QApplication) :
       self.scene.removeItem (line)
     self.lines = []
 
+  def playrateUpdated (self) :
+    pos = self.player.position ()
+    self.player.setPlaybackRate (pow (2, self.playratepow))
+    self.player.setPosition (pos)
+
+  def getseekt (self) :
+    factor = pow (2, self.playratepow)
+    return Stuff.seek_t * factor * 1000
+
   def filesOrIndexUpdated (self, isFirst = False, skip = 0) :
     if not isFirst :
+      self.player.stop ()
       skip = 0
       self.savedTransforms[self.lastDigest] = QTransform (self.imgItem.transform ())
       self.scene.removeItem (self.imgItem)
     self.index += skip
     self.index = 0 if self.index >= len (self.files) else self.index
-    with open (self.files[self.index], 'rb') as handle :
-      s = sha256 ()
-      s.update (handle.read ())
-    d = s.digest ()
-    img = QPixmap (self.files[self.index])
-    self.imgItem = self.scene.addPixmap (img)
 
-    wrat = img.width () / Stuff.width
-    hrat = img.height () / Stuff.height
+    f = self.files[self.index]
+    s = sha256 ()
+
+    if Stuff.isImage (f) :
+      with open (self.files[self.index], 'rb') as handle :
+        s.update (handle.read ())
+    else :
+      s.update (f.encode ('utf-8'))
+    d = s.digest ()
+
+    if Stuff.isImage (f) :
+      img = QPixmap (self.files[self.index])
+      self.imgItem = self.scene.addPixmap (img)
+
+      wrat = img.width () / Stuff.width
+      hrat = img.height () / Stuff.height
+    else :
+      self.playratepow = 0
+      self.mediaContent = QMediaContent (QUrl.fromLocalFile (f))
+      self.player.setMedia (self.mediaContent)
+      self.player.setMuted (True)
+      self.imgItem = QGraphicsVideoItem ()
+      self.player.setVideoOutput (self.imgItem)
+      self.scene.addItem (self.imgItem)
+      self.player.play ()
+
+      wrat = 1
+      hrat = 1
     rat = wrat if wrat > hrat else hrat
 
     if d in self.savedTransforms :
@@ -262,6 +306,36 @@ class App (QApplication) :
 
     elif e.key () in Stuff.pick_line_color :
       self.lineColor = QColorDialog.getColor ()
+
+    elif e.key () in Stuff.inc_play_rate :
+      self.playratepow += 1
+      self.playrateUpdated ()
+
+    elif e.key () in Stuff.dec_play_rate :
+      self.playratepow -= 1
+      self.playrateUpdated ()
+
+    elif e.key () in Stuff.res_play_rate :
+      self.playratepow = 0
+      self.playrateUpdated ()
+
+    elif e.key () in Stuff.seek_f :
+      t = self.getseekt ()
+      pos = self.player.position ()
+      pos += t
+      pos = 0 if pos < 0 else pos
+      self.player.setPosition (pos)
+
+    elif e.key () in Stuff.seek_b :
+      t = self.getseekt ()
+      pos = self.player.position ()
+      pos -= t
+      pos = 0 if pos < 0 else pos
+      self.player.setPosition (pos)
+
+    elif e.key () in Stuff.seek_0 :
+      self.player.setPosition (0)
+      self.player.play ()
 
   def go (self) :
     if self.err != '' :
